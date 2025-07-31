@@ -14,7 +14,7 @@ database.server.id=1
 tasks.max=1
 database.hostname=local_mysql57
 database.connectionTimeZone=Europe/Athens
-database.password=pF7SAM4WW3RYLEwkZTXVNF78PrbPtTeR
+database.password=xxxx
 schema.history.internal.kafka.bootstrap.servers=kafka:9092
 database.port=3306
 
