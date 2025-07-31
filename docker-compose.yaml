@@ -1,0 +1,112 @@
+ 
+services:
+  zookeeper:
+    image: quay.io/debezium/zookeeper:2.7
+    # ports:
+    #  - 2181:2181
+    #  - 2888:2888
+    #  - 3888:3888
+    networks:
+        - frontend
+  
+  kafka:
+    image: quay.io/debezium/kafka:2.7
+    depends_on:
+      - zookeeper
+    ports:
+      # - "9092:9092"   # INTERNAL (Docker-to-Docker)
+      - "29092:29092"   # EXTERNAL (Host-to-Docker)
+    environment:
+      - ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+ 
+    networks:
+        - frontend
+
+  connect:
+    image: quay.io/debezium/connect:2.7
+    depends_on:
+      - kafka
+    ports:
+      - "8083:8083"
+    environment:
+      - ENABLE_DEBEZIUM_KC_REST_EXTENSION=true
+      - CONNECT_REST_EXTENSION_CLASSES=io.debezium.kcrestextension.DebeziumConnectRestExtension,io.debezium.connector.postgresql.rest.DebeziumPostgresConnectRestExtension
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+      - ENABLE_DEBEZIUM_SCRIPTING=true
+      - CONNECT_ACCESS_CONTROL_ALLOW_ORIGIN=*
+      - CONNECT_ACCESS_CONTROL_ALLOW_METHODS=GET,POST,PUT,DELETE
+      - CONNECT_ACCESS_CONTROL_ALLOW_HEADERS=origin,content-type,accept,authorization
+    networks:
+        - frontend
+
+  debezium-ui:
+    image: quay.io/debezium/debezium-ui:2.4
+    ports:
+      - "8080:8080"
+    depends_on:
+      - connect
+    environment:
+      - KAFKA_CONNECT_URIS=http://connect:8083
+    networks:
+        - frontend
+
+  landoop-ui:
+    image: landoop/kafka-connect-ui
+    ports:
+      - "8000:8000"
+    depends_on:
+      - connect
+    environment:
+      - CONNECT_URL=http://connect:8083
+    networks:
+        - frontend
+ 
+
+  ## https://github.com/tchiotludo/akhq/blob/dev/docker-compose.yml
+  ## ✅ AKHQ UI (http://localhost:8081)
+  akhq:
+    image: tchiotludo/akhq
+    ports:
+      - "8001:8080"
+    depends_on:
+      - kafka
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:9092"
+              # schema-registry:
+              #   url: "http://schema-registry:8085"
+              connect:
+                - name: "connect"
+                  url: "http://connect:8083"
+    networks:
+      - frontend
+
+  ## ✅ Kafdrop UI (http://localhost:8082)
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    ports:
+      - "8002:9000"
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKERCONNECT=kafka:9092
+      - JVM_OPTS=-Xms32M -Xmx64M
+    networks:
+      - frontend
+
+networks:
+  frontend:
+    name: rz_network
+    external: true

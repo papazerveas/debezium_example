@@ -1,0 +1,11 @@
+checkpoint
+data
+
+/data/
+/checkpoint/
+/_spark_metadata/
+
+# Ignore all Spark output and metadata folders
+**/output_*/  
+**/checkpoint*/  
+**/_spark_metadata/
