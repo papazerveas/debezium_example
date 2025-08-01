@@ -1,18 +1,18 @@
 import pandas as pd
+import json
 
-pdf = pd.read_parquet("./emailtrack_spring_login", engine="pyarrow")
-print(pdf.head(n=100 ))
+pdf = pd.read_parquet("./data/local_mysql57_apifon_callbacks_test_client", engine="pyarrow")
+# pdf.count()
+# print(pdf.head(n=100 ))
 
-pdf.count()
 
-from pyspark.sql import SparkSession
+pdf["json_str"] = pdf["json_str"].apply(json.loads)
 
-spark = SparkSession.builder \
-    .appName("ReadParquet") \
-    .getOrCreate()
+# Step 2: Extract nested field
+df["payload"] = df["parsed"].apply(lambda x: x.get("payload", {}).get("after", {}).get("payload"))
 
-# Read the Parquet files
-df = spark.read.parquet("emailtrack_spring_login")
-df.count()
-# Show a sample
-print(df.toPandas().head())
+# (Optional) Step 3: Parse the payload string as a real dict if it's JSON
+df["payload_json"] = df["payload"].apply(json.loads)
+
+# Preview
+print(df[["payload", "payload_json"]])

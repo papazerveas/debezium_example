@@ -1,5 +1,6 @@
 checkpoint
 data
+volumes
 
 /data/
 /checkpoint/

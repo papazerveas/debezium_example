@@ -1,0 +1,131 @@
+services:
+  kafka-1:
+    image: quay.io/debezium/kafka:3.2
+    ports:
+      - 9192:9092
+      - 9193:9093
+      - 9112:9012
+    environment:
+      - CLUSTER_ID=oh-sxaDRTcyAr6pFRbXyzA
+      - NODE_ID=1
+      - NODE_ROLE=combined
+      - JMXPORT=9012
+      - JMXHOST=0.0.0.0
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_LISTENERS=CONTROLLER://kafka-1:9093,PLAINTEXT://kafka-1:9092
+      - KAFKA_ADVERTISED_LISTENERS=CONTROLLER://kafka-1:9093,PLAINTEXT://kafka-1:9092
+    networks:
+        - frontend
+    volumes:
+        - kafka-1-data:/kafka/data
+
+  kafka-2:
+    image: quay.io/debezium/kafka:3.2
+    ports:
+      - 9292:9092
+      - 9293:9093
+      - 9212:9012
+    environment:
+      - CLUSTER_ID=oh-sxaDRTcyAr6pFRbXyzA
+      - NODE_ID=2
+      - NODE_ROLE=combined
+      - JMXPORT=9012
+      - JMXHOST=0.0.0.0
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_LISTENERS=CONTROLLER://kafka-2:9093,PLAINTEXT://kafka-2:9092
+      - KAFKA_ADVERTISED_LISTENERS=CONTROLLER://kafka-2:9093,PLAINTEXT://kafka-2:9092
+    networks:
+        - frontend
+    volumes:
+        - kafka-2-data:/kafka/data
+  
+  kafka-3:
+    image: quay.io/debezium/kafka:3.2
+    ports:
+      - 9392:9092
+      - 9393:9093
+      - 9312:9012
+    environment:
+      - CLUSTER_ID=oh-sxaDRTcyAr6pFRbXyzA
+      - NODE_ID=3
+      - NODE_ROLE=combined
+      - JMXPORT=9012
+      - JMXHOST=0.0.0.0
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_LISTENERS=CONTROLLER://kafka-3:9093,PLAINTEXT://kafka-3:9092
+      - KAFKA_ADVERTISED_LISTENERS=CONTROLLER://kafka-3:9093,PLAINTEXT://kafka-3:9092
+    networks:
+        - frontend
+    volumes:
+        - kafka-3-data:/kafka/data
+
+  connect:
+    image: quay.io/debezium/connect:3.2
+    ports:
+      - 8083:8083
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    environment:
+      - BOOTSTRAP_SERVERS=kafka-1:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+    networks:
+        - frontend
+    volumes:
+        - connect-1-data:/kafka/data
+
+ 
+  landoop-ui:
+    image: landoop/kafka-connect-ui
+    ports:
+      - "8000:8000"
+    # depends_on:
+    #   connect:
+    #     condition: service_healthy
+    environment:
+      - CONNECT_URL=http://connect:8083
+    networks:
+        - frontend
+ 
+
+  ## https://github.com/tchiotludo/akhq/blob/dev/docker-compose.yml
+  ## AKHQ UI (http://localhost:8081)
+  akhq:
+    image: tchiotludo/akhq
+    ports:
+      - "8001:8080"
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka-1:9092"
+              # schema-registry:
+              #   url: "http://schema-registry:8085"
+              connect:
+                - name: "connect"
+                  url: "http://connect:8083"
+    
+    networks:
+      - frontend
+
+
+volumes:
+  kafka-1-data:
+  kafka-2-data:
+  kafka-3-data:
+  connect-1-data:
+
+networks:
+  frontend:
+    name: rz_network
+    external: true

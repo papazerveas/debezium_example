@@ -1,0 +1,126 @@
+ 
+services:
+
+  # Zookeeper (Απαραίτητος για Kafka < 4.0 σε legacy mode)
+  zookeeper:
+    image: quay.io/debezium/zookeeper:3.2
+    container_name: zookeeper
+    # ports:
+    #   - "2181:2181"   # Client port
+    #   - "2888:2888"   # Follower connections
+    #   - "3888:3888"   # Leader election
+    networks:
+      - frontend
+    volumes:
+      - ./volumes/zookeeper/data:/zookeeper/data # Δεδομένα Zookeeper
+      - ./volumes/zookeeper/logs:/zookeeper/log  # Logs Zookeeper
+    healthcheck:
+      test: ["CMD", "bash", "-c", "/zookeeper/bin/zkServer.sh status | grep Mode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  # kafka 4 KRaft mode (does not use zookeeeper)
+  kafka:
+    image: quay.io/debezium/kafka:3.2
+    ports:
+      - "29092:29092" # pyspark access
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      - ZOOKEEPER_CONNECT=zookeeper:2181  # kafka (με χρήση Zookeeper – legacy mode)
+      - KAFKA_BROKER_ID=1
+      # - CLUSTER_ID=oh-sxaDRTcyAr6pFRbXyzA
+      # - KAFKA_PROCESS_ROLES=broker,controller
+      # - KAFKA_NODE_ID=1
+      # - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      # - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+    volumes:
+      - ./volumes/kafka/data:/kafka/data # Kafka topics
+      - ./volumes/kafka/logs:/kafka/logs # Kafka runtime logs 
+      - ./volumes/kafka/config:/kafka/config  # Configurations (log4j etc)
+    networks:
+      - frontend
+    healthcheck:
+      test:  "/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:9092"
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+ 
+
+  # debezium connect with SQL databases
+  connect:
+    image: quay.io/debezium/connect:3.2
+    depends_on:
+      kafka:
+        condition: service_healthy
+    # ports:
+    #   - "8083:8083"
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092 # Σύνδεση με Kafka
+      # Topics για την αποθήκευση καταστάσεων connectors
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+
+    healthcheck:
+      test: ["CMD", "/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ./volumes/connect/data:/kafka/data  # Δεδομένα Connect (π.χ. offset stores, configs κλπ)
+      - ./volumes/connect/logs:/kafka/logs # Runtime logs
+      - ./volumes/connect/config:/kafka/config # Configurations (log4j, scripts κλπ)
+    networks:
+        - frontend
+
+ 
+  landoop-ui:
+    image: landoop/kafka-connect-ui
+    ports:
+      - "8000:8000"
+    depends_on:
+      connect:
+        condition: service_healthy
+    environment:
+      - CONNECT_URL=http://connect:8083
+    networks:
+        - frontend
+ 
+
+  ## https://github.com/tchiotludo/akhq/blob/dev/docker-compose.yml
+  ## AKHQ UI (http://localhost:8081)
+  akhq:
+    image: tchiotludo/akhq
+    ports:
+      - "8001:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:9092"
+              # schema-registry:
+              #   url: "http://schema-registry:8085"
+              connect:
+                - name: "connect"
+                  url: "http://connect:8083"
+    networks:
+      - frontend
+
+networks:
+  frontend:
+    name: rz_network
+    external: true
