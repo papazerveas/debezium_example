@@ -120,6 +120,31 @@ services:
     networks:
       - frontend
 
+
+ 
+  dremio:
+    image: dremio/dremio-oss:26.0.0  # use latest OSS version
+    container_name: dremio
+    ports:
+      - "9047:9047"   # Web UI
+      - "31010:31010" # JDBC / ODBC
+    volumes:
+      - ./data/dremio_data:/opt/dremio/data
+    networks:
+      - frontend
+
+  nessie:
+    image: ghcr.io/projectnessie/nessie:0.104.3
+    container_name: nessie
+    ports:
+      - "19120:19120"  # REST API για σύνδεση από Dremio
+      # Management port (metrics and health checks)
+      - "29000:9000"
+    environment:
+      QUARKUS_HTTP_PORT: 19120
+    networks:
+      - frontend
+
 networks:
   frontend:
     name: rz_network

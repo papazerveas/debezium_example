@@ -78,3 +78,45 @@ conda create -n spark python==3.12.3
 conda activate spark
 pip install -r requirenents.txt
 ```
+
+## spark on docker
+
+```bash
+ 
+docker run --rm -it -v .:/app -v C:/Users/sotiris.p/.ivy2:/opt/bitnami/spark/.ivy2 -w /app --network rz_network bitnami/spark:3.5.6  bash
+
+ 
+docker run --rm -v "$(pwd)":/app -w /app docker.io/bitnami/spark:3.5.6-debian-12-r0 spark-submit /app/consume-pyspark.py
+```
+
+
+## dremio
+
+```bash
+docker exec -u 0 -it dremio bash
+cp /opt/dremio/data/rzLocalCA.crt /usr/local/share/ca-certificates
+update-ca-certificates
+
+curl https://minio4.retailzoom.local
+ls /usr/local/share/ca-certificates
+
+keytool -importcert \
+  -file /usr/local/share/ca-certificates/rzLocalCA.crt \
+  -alias rzLocalCA \
+  -keystore /opt/java/openjdk/lib/security/cacerts \
+  -storepass changeit \
+  -noprompt
+
+
+fs.s3a.endpoint - minio4.retailzoom.local
+fs.s3a.path.style.access - true
+dremio.s3.compat   true
+```
+
+## nessie
+
+```bash
+https://blog.min.io/uncover-data-lake-nessie-dremio-iceberg/
+
+ http://nessie:19120/api/v2
+```

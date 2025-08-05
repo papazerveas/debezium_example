@@ -1,6 +1,7 @@
 checkpoint
 data
 volumes
+__pycache__
 
 /data/
 /checkpoint/
