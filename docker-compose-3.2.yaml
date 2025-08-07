@@ -2,38 +2,43 @@
 services:
 
   # Zookeeper (Απαραίτητος για Kafka < 4.0 σε legacy mode)
-  zookeeper:
-    image: quay.io/debezium/zookeeper:3.2
-    container_name: zookeeper
-    # ports:
-    #   - "2181:2181"   # Client port
-    #   - "2888:2888"   # Follower connections
-    #   - "3888:3888"   # Leader election
-    networks:
-      - frontend
-    volumes:
-      - ./volumes/zookeeper/data:/zookeeper/data # Δεδομένα Zookeeper
-      - ./volumes/zookeeper/logs:/zookeeper/log  # Logs Zookeeper
-    healthcheck:
-      test: ["CMD", "bash", "-c", "/zookeeper/bin/zkServer.sh status | grep Mode"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-  
+  # zookeeper:
+  #   image: quay.io/debezium/zookeeper:3.2
+  #   container_name: zookeeper
+  #   # ports:
+  #   #   - "2181:2181"   # Client port
+  #   #   - "2888:2888"   # Follower connections
+  #   #   - "3888:3888"   # Leader election
+  #   networks:
+  #     - frontend
+  #   volumes:
+  #     - ./volumes/zookeeper/data:/zookeeper/data # Δεδομένα Zookeeper
+  #     - ./volumes/zookeeper/logs:/zookeeper/log  # Logs Zookeeper
+  #   healthcheck:
+  #     test: ["CMD", "bash", "-c", "/zookeeper/bin/zkServer.sh status | grep Mode"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
+
+
   # kafka 4 KRaft mode (does not use zookeeeper)
   kafka:
     image: quay.io/debezium/kafka:3.2
     ports:
       - "29092:29092" # pyspark access
-    depends_on:
-      zookeeper:
-        condition: service_healthy
+    # depends_on:
+    #   zookeeper:
+    #     condition: service_healthy
     environment:
-      - ZOOKEEPER_CONNECT=zookeeper:2181  # kafka (με χρήση Zookeeper – legacy mode)
+      # - ZOOKEEPER_CONNECT=zookeeper:2181  # kafka (με χρήση Zookeeper – legacy mode)
       - KAFKA_BROKER_ID=1
+      # - NODE_ID=1
+
+      # Kraft mode
+      - KAFKA_NODE_ID=1
       # - CLUSTER_ID=oh-sxaDRTcyAr6pFRbXyzA
       # - KAFKA_PROCESS_ROLES=broker,controller
-      # - KAFKA_NODE_ID=1
       # - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
       # - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
@@ -48,10 +53,10 @@ services:
       - frontend
     healthcheck:
       test:  "/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:9092"
-      interval: 10s
-      timeout: 10s
-      retries: 5
-
+      interval: 20s
+      timeout: 20s
+      retries: 10
+    restart: unless-stopped
  
 
   # debezium connect with SQL databases
@@ -81,7 +86,7 @@ services:
       - ./volumes/connect/config:/kafka/config # Configurations (log4j, scripts κλπ)
     networks:
         - frontend
-
+    restart: unless-stopped
  
   landoop-ui:
     image: landoop/kafka-connect-ui
@@ -94,7 +99,7 @@ services:
       - CONNECT_URL=http://connect:8083
     networks:
         - frontend
- 
+    restart: unless-stopped 
 
   ## https://github.com/tchiotludo/akhq/blob/dev/docker-compose.yml
   ## AKHQ UI (http://localhost:8081)
@@ -119,7 +124,7 @@ services:
                   url: "http://connect:8083"
     networks:
       - frontend
-
+    restart: unless-stopped
 
  
   dremio:
@@ -132,18 +137,20 @@ services:
       - ./data/dremio_data:/opt/dremio/data
     networks:
       - frontend
+    restart: unless-stopped
 
   nessie:
     image: ghcr.io/projectnessie/nessie:0.104.3
     container_name: nessie
-    ports:
-      - "19120:19120"  # REST API για σύνδεση από Dremio
-      # Management port (metrics and health checks)
-      - "29000:9000"
+    # ports:
+    #   - "19120:19120"  # REST API για σύνδεση από Dremio
+    #   # Management port (metrics and health checks)
+    #   - "29000:9000"
     environment:
       QUARKUS_HTTP_PORT: 19120
     networks:
       - frontend
+    restart: unless-stopped
 
 networks:
   frontend:
