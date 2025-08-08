@@ -13,16 +13,16 @@ spark = (SparkSession.builder
 
 q1 = enable_stream(
     session=spark,
-    # kafka_servers="localhost:29092",
     kafka_servers="kafka:9092",
-    topic="local_mysql57.apifon_callbacks.test_client"
+    topic="local_mysql57.apifon_callbacks.test_client",
+    output_table="nessie.mysql.beautyline"
 )
 
 q2 = enable_stream(
     session=spark,
-    # kafka_servers="localhost:29092",
     kafka_servers="kafka:9092",
-    topic="apifon_callback_postgres.public.test_client"
+    topic="apifon_callback_postgres.public.test_client",
+    output_table="nessie.postgres.beautyline"
 )
 
 # q1.awaitTermination()

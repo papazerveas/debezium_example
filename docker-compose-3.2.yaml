@@ -152,6 +152,39 @@ services:
       - frontend
     restart: unless-stopped
 
+  postgres_apifon_tunnel :
+    image: hadoop04:5000/ssh/tunnel:1.0.0-alpine
+    container_name: postgres-apifon-tunnel 
+    restart: no
+    volumes:
+      - ./ssh:/root/ssh:ro
+    environment:
+      REMOTE_HOST: postgres.apifon-tunnel 
+      PORTS: 5432
+      TZ: Europe/Athens
+    networks:
+      - frontend
+
+  spark-stream:
+    image: bitnami/spark:3.5.6
+    container_name: spark-stream
+    command: ["python", "consume-pyspark.py"]
+    working_dir: /app
+    volumes:
+      - ./spark/cacerts:/opt/bitnami/java/lib/security/cacerts
+      - ./spark/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ./spark:/app
+      - ./volumes/spark/.ivy2:/opt/bitnami/spark/.ivy2
+    environment:
+      # SPARK_CONF_DIR: /app
+      AWS_SHARED_CREDENTIALS_FILE: /app/.aws/credentials
+      AWS_CONFIG_FILE: /app/.aws/config
+      AWS_PROFILE: demo
+      SPARK_JARS_IVY: /opt/bitnami/spark/.ivy2
+    networks:
+      - frontend
+    restart: "unless-stopped"
+  
 networks:
   frontend:
     name: rz_network

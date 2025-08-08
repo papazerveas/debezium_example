@@ -3,9 +3,12 @@ from pyspark.sql import SparkSession
 def enable_stream(
     session: SparkSession,
     kafka_servers = "localhost:29092",
-    topic: str = "local_mysql57.apifon_callbacks.test_client"
+    topic: str = "local_mysql57.apifon_callbacks.test_client",
+    output_table = None
 ):
     safe_topic = topic.replace("/", "_").replace(".", "_")
+    if output_table is None:
+        output_table = safe_topic
 
     # Read from Kafka topic
     raw_df = (session.readStream
@@ -20,7 +23,9 @@ def enable_stream(
     def write_parquet_batch(batch_df, batch_id):
         print(f">>> Batch {batch_id}, count = {batch_df.count()}")
         # You can add transformations here if needed
-        batch_df.write.mode("append").parquet(f"./data/{safe_topic}")
+        batch_df.write.mode("append").saveAsTable( output_table)
+        
+        # batch_df.write.mode("append").parquet(f"./data/{safe_topic}")
 
     # Get the raw JSON payload as string
     json_df = raw_df.selectExpr("*", "CAST(value AS STRING) as json_str").drop("value")
@@ -29,7 +34,7 @@ def enable_stream(
     query = (json_df.writeStream
              .queryName(f"stream_{safe_topic}")
              .foreachBatch(write_parquet_batch)
-             .option("checkpointLocation", f"./checkpoint/{safe_topic}")
+             .option("checkpointLocation", f"s3a://iceberg-datalake/checkpoints/{safe_topic}")
              .trigger(processingTime='1 seconds')
              .start()
              )
